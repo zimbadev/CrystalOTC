@@ -32,6 +32,10 @@ vcpkg_cmake_configure(
         -DRMLUI_SAMPLES=OFF
         -DBUILD_TESTING=OFF
         -DRMLUI_COMPILER_OPTIONS=OFF
+        # vcpkg installs the runtime dependencies itself; RmlUi's install-time
+        # file(GET_RUNTIME_DEPENDENCIES) cannot see them during the port build and fails
+        # with "Could not resolve runtime dependencies: freetyped.dll, lua51.dll".
+        -DRMLUI_INSTALL_RUNTIME_DEPENDENCIES=OFF
 )
 
 vcpkg_cmake_install()

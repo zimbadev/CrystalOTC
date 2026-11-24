@@ -1,0 +1,79 @@
+diff --git a/Source/Lua/LuaDataModel.cpp b/Source/Lua/LuaDataModel.cpp
+index bf6e60e..0b39d46 100644
+--- a/Source/Lua/LuaDataModel.cpp
++++ b/Source/Lua/LuaDataModel.cpp
+@@ -315,6 +315,8 @@ static int TableProxyGet(lua_State* L)
+ {
+ 	// 1 = table proxy, 2 = key
+ 	struct TableProxy* proxy = (struct TableProxy*)lua_touserdata(L, 1);
++	if (proxy->model->model_ref == LUA_NOREF)
++		return luaL_error(L, "DataModel closed");
+ 
+ 	lua_rawgeti(L, LUA_REGISTRYINDEX, proxy->model->tablestore_ref);
+ 	// -1 = tablestore
+@@ -396,6 +398,8 @@ static int TableProxySet(lua_State* L)
+ {
+ 	// 1 = table proxy, 2 = key, 3 = value
+ 	struct TableProxy* proxy = (struct TableProxy*)lua_touserdata(L, 1);
++	if (proxy->model->model_ref == LUA_NOREF)
++		return luaL_error(L, "DataModel closed");
+ 
+ 	struct TableProxy* value_proxy = ToTableProxy(L, 3);
+ 	if (value_proxy != nullptr)
+@@ -524,6 +528,15 @@ static struct TableProxy* NewTableProxy(struct LuaDataModel* model, int key_ref)
+ 	}
+ 	lua_setmetatable(L, -2);
+ 
++	// The proxy points at its model, which is a userdata owned by the garbage collector. Once the
++	// model is closed nothing else references that userdata, so it could be collected before the
++	// proxy is finalized and TableProxyGc would read freed memory. Reference it from the proxy.
++	lua_newtable(L);
++	PushValue(model, model->model_ref);
++	lua_rawseti(L, -2, 1);
++	lua_setuservalue(L, -2);
++	// -1 = proxy
++
+ 	return proxy;
+ }
+ 
+@@ -677,6 +690,13 @@ static int lDataModelSet(lua_State* L)
+ 	return 0;
+ }
+ 
++// Open models are indexed per context: the same model name can be open in several contexts at
++// once, and closing it in one of them must not find (and tear down) the model of another.
++static void PushDataModelKey(lua_State* L, Context* context, int name_index)
++{
++	lua_pushfstring(L, "%p:%s", (void*)context, lua_tostring(L, name_index));
++}
++
+ void PushDataModelsTable(lua_State* L)
+ {
+ 	static constexpr auto datamodels_key = "datamodels";
+@@ -749,7 +769,7 @@ bool OpenLuaDataModel(lua_State* L, Context* context, int name_index, int table_
+ 
+ 	PushDataModelsTable(L);
+ 	// -1 = data models table, -2 = data model
+-	lua_pushvalue(L, name_index);
++	PushDataModelKey(L, context, name_index);
+ 	// -1 = name, -2 = data models table, -3 = data model
+ 	lua_pushvalue(L, -3);
+ 	// -1 = data model, -2 = name, -3 = data models table, -4 = data model
+@@ -767,7 +787,7 @@ void CloseLuaDataModel(lua_State* L, Context* context, int name_index)
+ 
+ 	PushDataModelsTable(L);
+ 	// -1 = data models table
+-	lua_pushvalue(L, name_index);
++	PushDataModelKey(L, context, name_index);
+ 	// -1 = name, -2 = data models table
+ 	lua_rawget(L, -2);
+ 	// -1 = data model / nil, -2 = data models table
+@@ -797,7 +817,7 @@ void CloseLuaDataModel(lua_State* L, Context* context, int name_index)
+ 
+ 	PushDataModelsTable(L);
+ 	// -1 = data models table
+-	lua_pushvalue(L, name_index);
++	PushDataModelKey(L, context, name_index);
+ 	// -1 = name, -2 = data models table
+ 	lua_pushnil(L);
+ 	// -1 = nil, -2 = name, -3 = data models table

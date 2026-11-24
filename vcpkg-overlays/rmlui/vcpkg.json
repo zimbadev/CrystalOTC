@@ -1,7 +1,7 @@
 {
   "name": "rmlui",
   "version": "6.3",
-  "port-version": 1,
+  "port-version": 2,
   "description": "RmlUi 6.3 with FreeType, the debugger plugin and Lua bindings built against LuaJIT (CrystalOTC overlay).",
   "homepage": "https://github.com/mikke89/RmlUi",
   "license": "MIT",

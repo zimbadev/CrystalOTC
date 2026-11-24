@@ -6,3 +6,5 @@
 *.h   eol=lf
 # Batch files must be CRLF to run reliably on every Windows setup
 *.bat eol=crlf
+# vcpkg applies overlay-port patches to LF sources: a CRLF checkout makes git apply fail
+*.patch eol=lf

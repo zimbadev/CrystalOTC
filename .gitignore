@@ -223,6 +223,8 @@ tags
 *.pic
 config.otml
 *.patch
+# Overlay ports ship patches as part of the port itself (not local work in progress).
+!vcpkg-overlays/**/*.patch
 
 ## Cmake cache
 CMakeLists.txt.user
