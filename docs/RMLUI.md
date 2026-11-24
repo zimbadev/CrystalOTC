@@ -40,8 +40,10 @@ nothing else. Their interface text is in Portuguese, as in the fork.
 ## Build
 
 RmlUi comes from a vcpkg overlay port, `vcpkg-overlays/rmlui`: version 6.3 with FreeType, the debugger
-plugin and the Lua plugin built against the client's LuaJIT. It is listed in `vcpkg.json`, so both builds
-pick it up without extra steps.
+plugin and the Lua plugin built against the client's LuaJIT. `vcpkg-configuration.json` registers
+`vcpkg-overlays` as an overlay directory, so the port overrides the stock one (6.2, Lua plugin off) in
+every manifest build — CMake and MSBuild alike, locally and in CI. CMake stops with an error if the
+found RmlUi has no Lua plugin instead of failing later at link time.
 
 - **MSBuild** (`vc18/otclient.vcxproj`): `FRAMEWORK_RMLUI` and `RMLUI_STATIC_LIB` are defined in
   `vc18/settings.props`. `tools/rmlui/verify-port.ps1` checks that the port is installed and that its

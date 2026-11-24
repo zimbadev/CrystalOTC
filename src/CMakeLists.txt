@@ -313,6 +313,15 @@ if(OTCLIENT_RMLUI)
       INTERFACE_INCLUDE_DIRECTORIES "${LUAJIT_INCLUDE_DIR}")
   endif()
   find_package(RmlUi CONFIG REQUIRED)
+  # The client uses the Lua plugin (luafunctions.cpp, rmlmanager.cpp). Stock vcpkg builds
+  # rmlui with RMLUI_LUA_BINDINGS=OFF and still installs the Lua headers, so the sources
+  # compile and the missing library only surfaces as undefined symbols at link time.
+  if(NOT TARGET RmlUi::Lua)
+    message(FATAL_ERROR
+      "RmlUi was built without its Lua plugin (RMLUI_LUA_BINDINGS=OFF).\n"
+      "Use the overlay port in vcpkg-overlays/rmlui, registered by vcpkg-configuration.json "
+      "(see docs/RMLUI.md).")
+  endif()
   log_option_enabled("RMLUI")
 endif()
 

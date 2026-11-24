@@ -7,6 +7,8 @@ on:
     paths:
       - "src/**"
       - "vcpkg.json"
+      - "vcpkg-configuration.json"
+      - "vcpkg-overlays/**"
       - "CMakeLists.txt"
       - "CMakePresets.json"
       - "tools/ci/**"
@@ -17,6 +19,8 @@ on:
       - "src/**"
       - "cmake/**"
       - "vcpkg.json"
+      - "vcpkg-configuration.json"
+      - "vcpkg-overlays/**"
       - "CMakeLists.txt"
       - "CMakePresets.json"
       - "tools/ci/**"
@@ -97,9 +101,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vcpkg
-          key: deps-v1-windows-${{ matrix.configuration }}-msvc${{ steps.identity.outputs.compiler }}-${{ hashFiles('vcpkg.json') }}
+          key: deps-v2-windows-${{ matrix.configuration }}-msvc${{ steps.identity.outputs.compiler }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-overlays/**') }}
           restore-keys: |
-            deps-v1-windows-${{ matrix.configuration }}-msvc${{ steps.identity.outputs.compiler }}-
+            deps-v2-windows-${{ matrix.configuration }}-msvc${{ steps.identity.outputs.compiler }}-
 
       # Rolling key: every run saves its objects, the next one starts from the newest snapshot.
       - name: Restore compiler cache

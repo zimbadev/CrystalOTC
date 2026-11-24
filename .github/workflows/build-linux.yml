@@ -37,6 +37,8 @@ on:
       - "CMakeLists.txt"
       - "CMakePresets.json"
       - "vcpkg.json"
+      - "vcpkg-configuration.json"
+      - "vcpkg-overlays/**"
       - ".github/workflows/build-linux.yml"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -48,6 +50,8 @@ on:
       - "CMakeLists.txt"
       - "CMakePresets.json"
       - "vcpkg.json"
+      - "vcpkg-configuration.json"
+      - "vcpkg-overlays/**"
       - ".github/workflows/build-linux.yml"
 
 permissions:
@@ -136,9 +140,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/vcpkg
-          key: deps-v1-linux-${{ env.TRIPLET }}-gcc${{ steps.identity.outputs.compiler }}-${{ hashFiles('vcpkg.json') }}
+          key: deps-v2-linux-${{ env.TRIPLET }}-gcc${{ steps.identity.outputs.compiler }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'vcpkg-overlays/**') }}
           restore-keys: |
-            deps-v1-linux-${{ env.TRIPLET }}-gcc${{ steps.identity.outputs.compiler }}-
+            deps-v2-linux-${{ env.TRIPLET }}-gcc${{ steps.identity.outputs.compiler }}-
 
       - name: Restore compiler cache
         id: compiler
