@@ -228,6 +228,15 @@ void X11Window::init()
     internalCreateWindow();
 }
 
+bool X11Window::hasGLContext() const
+{
+#ifdef OPENGL_ES
+    return m_eglContext != EGL_NO_CONTEXT;
+#else
+    return m_glxContext != nullptr;
+#endif
+}
+
 void X11Window::terminate()
 {
     if (m_cursor != X11None) {

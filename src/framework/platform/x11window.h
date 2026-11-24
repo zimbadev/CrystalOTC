@@ -60,6 +60,10 @@ public:
     X11Window();
 
     void init();
+    // State-based like WIN32Window: the X11 window always creates a GL context in init(),
+    // but code that runs before it (and test processes, which never create a window) must
+    // see that there is no OpenGL context yet.
+    bool hasGLContext() const override;
     void terminate();
 
     void move(const Point& pos);
