@@ -1,4 +1,4 @@
-﻿-- chunkname: @/game_actionbar/game_actionbar.lua
+-- chunkname: @/game_actionbar/game_actionbar.lua
 
 HOTKEY_USE = nil
 HOTKEY_USEONSELF = 1
@@ -57,16 +57,17 @@ textAssignWindow = nil
 equipmentAssignWindow = nil
 equipmentAssignIconWindow = nil
 
-local equipmentAssignDraft, equipmentAssignPickInvSlot
-local equipmentAssignHiddenForPick = false
-local equipmentAssignHiddenForIconPicker = false
-local equipmentAssignIconIndex = 0
-local equipmentAssignDescription = ""
-local equipmentAssignIconPickerRevertIndex = 0
-local equipmentAssignIconPickerRevertDescription = ""
-local equipmentAssignTypeIndex = 0
-local equipmentAssignTypePickerRevertIndex = 0
-local equipmentAssignTypeRadioGroup
+equipmentAssignDraft = nil
+equipmentAssignPickInvSlot = nil
+equipmentAssignHiddenForPick = false
+equipmentAssignHiddenForIconPicker = false
+equipmentAssignIconIndex = 0
+equipmentAssignDescription = ""
+equipmentAssignIconPickerRevertIndex = 0
+equipmentAssignIconPickerRevertDescription = ""
+equipmentAssignTypeIndex = 0
+equipmentAssignTypePickerRevertIndex = 0
+equipmentAssignTypeRadioGroup = nil
 local EQUIPMENT_TYPE_ICON_BASE = "/game_cyclopedia/images/bestiary/icons/monster-icon-"
 local EQUIPMENT_TYPE_OPTIONS = {
 	"energy-resist",
@@ -725,12 +726,12 @@ function clearSlotActionContent(slot)
 end
 
 local function copyEquipmentAssignMetaFromSlot(actionSlot)
-	if actionSlot then
+	if actionSlot and actionSlot.equipmentIconIndex and actionSlot.equipmentIconIndex > 0 then
 		equipmentAssignIconIndex = normalizeEquipmentIconIndex(actionSlot.equipmentIconIndex)
 		equipmentAssignDescription = actionSlot.equipmentDescription or ""
 		equipmentAssignTypeIndex = normalizeEquipmentTypeIndex(actionSlot.equipmentTypeIndex)
 	else
-		equipmentAssignIconIndex = EQUIPMENT_ICON_UNDETERMINED_INDEX
+		equipmentAssignIconIndex = 1
 		equipmentAssignDescription = ""
 		equipmentAssignTypeIndex = 0
 	end
@@ -1070,6 +1071,8 @@ local function refreshEquipmentAssignSlotWidget(slotWidget, entry)
 		return
 	end
 
+	itemWidget:setFixedItemSize(false)
+
 	local invSlot = slotWidget.inventorySlot
 	local mirrorShieldSlot = false
 
@@ -1177,6 +1180,20 @@ local function refreshAllEquipmentAssignSlots()
 	refreshEquipmentAssignBackpackSlot()
 end
 
+local function hasAnyEquipmentAssigned()
+	if not equipmentAssignDraft then
+		return false
+	end
+
+	for invSlot, entry in pairs(equipmentAssignDraft) do
+		if not isEquipmentAssignVisualBackpackSlot(invSlot) and entry and entry.itemId and entry.itemId > 0 then
+			return true
+		end
+	end
+
+	return false
+end
+
 function equipmentAssignUpdateButtons()
 	if not equipmentAssignWindow or equipmentAssignWindow:isDestroyed() then
 		return
@@ -1184,7 +1201,7 @@ function equipmentAssignUpdateButtons()
 
 	local okBtn = equipmentAssignWindow:getChildById("okButton")
 	local applyBtn = equipmentAssignWindow:getChildById("applyButton")
-	local canSave = isEquipmentAssignIconDetermined()
+	local canSave = hasAnyEquipmentAssigned() or isEquipmentAssignIconDetermined()
 
 	if okBtn then
 		okBtn:setEnabled(canSave)
@@ -1539,8 +1556,26 @@ local function setupEquipmentAssignSlotHandlers()
 	end)
 end
 
-local function actionSlotEquippedItemMatches(item, itemId, tier)
-	if not item or item:getId() ~= itemId then
+function actionSlotEquippedItemMatches(item, itemId, tier)
+	if not item or not itemId or itemId <= 0 then
+		return false
+	end
+
+	local idMatches = (item:getId() == itemId)
+	if not idMatches then
+		local equippedName = item:getName()
+		if equippedName and equippedName ~= "" then
+			local targetType = g_things.getThingType(itemId, ThingCategoryItem)
+			if targetType then
+				local targetName = targetType:getName()
+				if targetName and targetName ~= "" and targetName:lower() == equippedName:lower() then
+					idMatches = true
+				end
+			end
+		end
+	end
+
+	if not idMatches then
 		return false
 	end
 
@@ -1553,7 +1588,7 @@ local function actionSlotEquippedItemMatches(item, itemId, tier)
 	return true
 end
 
-local function actionSlotHasEquipmentSetEntries(slot)
+function actionSlotHasEquipmentSetEntries(slot)
 	if not slot or not slot.equipments then
 		return false
 	end
@@ -1567,7 +1602,7 @@ local function actionSlotHasEquipmentSetEntries(slot)
 	return false
 end
 
-local EQUIPMENT_SET_EQUIP_ORDER = {
+EQUIPMENT_SET_EQUIP_ORDER = {
 	InventorySlotHead,
 	InventorySlotNeck,
 	InventorySlotBody,
@@ -1578,16 +1613,24 @@ local EQUIPMENT_SET_EQUIP_ORDER = {
 	InventorySlotFinger,
 	InventorySlotAmmo
 }
-local EQUIPMENT_SET_COOLDOWN_MS = 1000
-local EQUIPMENT_SET_CD_PROGRESS_ID = "progressEquipmentSet"
-local EQUIPMENT_SET_SHARED_CD_KEY = "equipmentSetShared"
-local equipmentSetSharedCooldownUntil
+EQUIPMENT_SET_COOLDOWN_MS = 1000
+EQUIPMENT_SET_CD_PROGRESS_ID = "progressEquipmentSet"
+EQUIPMENT_SET_SHARED_CD_KEY = "equipmentSetShared"
+equipmentSetSharedCooldownUntil = nil
+equipmentSetQueueEvents = {}
 
-local function equipmentSetCooldownGroupId()
+function clearEquipmentSetQueue()
+	for _, ev in ipairs(equipmentSetQueueEvents) do
+		removeEvent(ev)
+	end
+	equipmentSetQueueEvents = {}
+end
+
+function equipmentSetCooldownGroupId()
 	return EQUIPMENT_SET_SHARED_CD_KEY
 end
 
-local function forEachEquipmentSetActionSlot(callback)
+function forEachEquipmentSetActionSlot(callback)
 	if not callback then
 		return
 	end
@@ -1605,7 +1648,7 @@ local function forEachEquipmentSetActionSlot(callback)
 	end
 end
 
-local function isEquipmentSetActionOnCooldown(slot)
+function isEquipmentSetActionOnCooldown(slot)
 	if not isActionSlotEquipmentPreset(slot) then
 		return false
 	end
@@ -1613,11 +1656,13 @@ local function isEquipmentSetActionOnCooldown(slot)
 	return equipmentSetSharedCooldownUntil and g_clock.millis() < equipmentSetSharedCooldownUntil
 end
 
-local function startEquipmentSetActionCooldown()
-	equipmentSetSharedCooldownUntil = g_clock.millis() + EQUIPMENT_SET_COOLDOWN_MS
+function startEquipmentSetActionCooldown(customDurationMs)
+	local duration = (customDurationMs and customDurationMs > 0) and customDurationMs or EQUIPMENT_SET_COOLDOWN_MS
+	equipmentSetSharedCooldownUntil = g_clock.millis() + duration
 
 	forEachEquipmentSetActionSlot(function(slot)
 		slot._equipmentSetCooldownUntil = equipmentSetSharedCooldownUntil
+		slot._equipmentSetCooldownDuration = duration
 
 		if startEquipmentSetActionCooldownVisual then
 			startEquipmentSetActionCooldownVisual(slot)
@@ -1625,7 +1670,7 @@ local function startEquipmentSetActionCooldown()
 	end)
 end
 
-local function actionSlotPresetEntryMatchesEquipped(player, invSlot, entry)
+function actionSlotPresetEntryMatchesEquipped(player, invSlot, entry)
 	if not player or not entry or not entry.itemId or entry.itemId <= 0 then
 		return true
 	end
@@ -1633,7 +1678,7 @@ local function actionSlotPresetEntryMatchesEquipped(player, invSlot, entry)
 	return actionSlotEquippedItemMatches(player:getInventoryItem(invSlot), entry.itemId, entry.getTier or 0)
 end
 
-local function actionSlotPresetEntryForSlot(slot, invSlot)
+function actionSlotPresetEntryForSlot(slot, invSlot)
 	if not slot or not slot.equipments then
 		return nil
 	end
@@ -1647,7 +1692,7 @@ local function actionSlotPresetEntryForSlot(slot, invSlot)
 	return nil
 end
 
-local function actionSlotEquipmentSetNeedsEquip(slot)
+function actionSlotEquipmentSetNeedsEquip(slot)
 	if not isActionSlotEquipmentPreset(slot) then
 		return false
 	end
@@ -1677,7 +1722,7 @@ local function actionSlotEquipmentSetNeedsEquip(slot)
 	return false
 end
 
-local function isActionSlotEquipSetActive(slot)
+function isActionSlotEquipSetActive(slot)
 	if not isActionSlotEquipmentPreset(slot) then
 		return false
 	end
@@ -3451,6 +3496,8 @@ function init()
 end
 
 function terminate()
+	clearEquipmentSetQueue()
+
 	if actionBarPreloadEvent then
 		removeEvent(actionBarPreloadEvent)
 
@@ -3592,6 +3639,8 @@ function online()
 end
 
 function offline()
+	clearEquipmentSetQueue()
+
 	if closeCurrentMultiActionPanel then
 		closeCurrentMultiActionPanel()
 	end
@@ -5225,7 +5274,7 @@ function applyEquipmentAssign(closeAfter)
 	end
 
 	if not isEquipmentAssignIconDetermined() then
-		return
+		equipmentAssignIconIndex = 1
 	end
 
 	if clearSlotMultiActions then
@@ -6927,6 +6976,112 @@ function onSpellCrosshairMouseRelease(self, mousePosition, mouseButton)
 	return true
 end
 
+function executeEquipmentSetAction(slot)
+	if not isActionSlotEquipmentPreset(slot) then
+		return
+	end
+
+	local player = g_game.getLocalPlayer()
+	if not player or not player.getInventoryItem then
+		return
+	end
+
+	clearEquipmentSetQueue()
+
+	local actions = {}
+
+	-- 1. Slots que precisam ser desequipados
+	for _, invSlot in ipairs(EQUIPMENT_SET_EQUIP_ORDER) do
+		local entry = actionSlotPresetEntryForSlot(slot, invSlot)
+		local equipped = player:getInventoryItem(invSlot)
+
+		if not entry then
+			if equipped then
+				table.insert(actions, {
+					type = "unequip",
+					invSlot = invSlot,
+					itemId = equipped:getId(),
+					tier = equipped.getTier and equipped:getTier() or 0
+				})
+			end
+		else
+			-- Se o slot tem item configurado no preset, mas o jogador tem outro item diferente equipado:
+			-- Desequipar o item atual primeiro para garantir que ele vá para o container correto do Manage Containers!
+			if equipped and not actionSlotPresetEntryMatchesEquipped(player, invSlot, entry) then
+				table.insert(actions, {
+					type = "unequip",
+					invSlot = invSlot,
+					itemId = equipped:getId(),
+					tier = equipped.getTier and equipped:getTier() or 0
+				})
+			end
+		end
+	end
+
+	-- 2. Slots que precisam ser equipados
+	for _, invSlot in ipairs(EQUIPMENT_SET_EQUIP_ORDER) do
+		local entry = actionSlotPresetEntryForSlot(slot, invSlot)
+		if entry and not actionSlotPresetEntryMatchesEquipped(player, invSlot, entry) then
+			table.insert(actions, {
+				type = "equip",
+				invSlot = invSlot,
+				itemId = entry.itemId,
+				tier = entry.getTier or 0
+			})
+		end
+	end
+
+	if #actions == 0 then
+		return
+	end
+
+	local stepDelay = 220
+	local totalTimeMs = #actions * stepDelay
+	startEquipmentSetActionCooldown(math.max(EQUIPMENT_SET_COOLDOWN_MS, totalTimeMs))
+
+	local function processAction(stepIndex)
+		if not g_game.isOnline() then
+			clearEquipmentSetQueue()
+			return
+		end
+
+		local p = g_game.getLocalPlayer()
+		if not p or not p.getInventoryItem then
+			clearEquipmentSetQueue()
+			return
+		end
+
+		local action = actions[stepIndex]
+		if not action then
+			return
+		end
+
+		if action.type == "unequip" then
+			local currentEquipped = p:getInventoryItem(action.invSlot)
+			if currentEquipped then
+				local tier = currentEquipped.getTier and currentEquipped:getTier() or 0
+				g_game.equipItemId(currentEquipped:getId(), tier)
+			end
+		elseif action.type == "equip" then
+			local entry = actionSlotPresetEntryForSlot(slot, action.invSlot)
+			if entry and not actionSlotPresetEntryMatchesEquipped(p, action.invSlot, entry) then
+				g_game.equipItemId(action.itemId, action.tier or 0)
+			end
+		end
+	end
+
+	-- Executa a primeira ação imediatamente
+	processAction(1)
+
+	-- Agenda as ações restantes com delay progressivo
+	for i = 2, #actions do
+		local ev = scheduleEvent(function()
+			processAction(i)
+		end, (i - 1) * stepDelay)
+		table.insert(equipmentSetQueueEvents, ev)
+	end
+end
+
 function executeActionSlot(slot, fromKeyboard)
 	if closeCurrentMultiActionPanel then
 		closeCurrentMultiActionPanel()
@@ -6943,33 +7098,7 @@ function executeActionSlot(slot, fromKeyboard)
 			HotkeyUtils.executeHotkeyItem(HOTKEY_USEONSELF, slot.itemId, slot.subType)
 		elseif slot.useType == "equip" then
 			if isActionSlotEquipmentPreset(slot) then
-				if actionSlotEquipmentSetNeedsEquip(slot) then
-					local player = g_game.getLocalPlayer()
-
-					if player then
-						for _, invSlot in ipairs(EQUIPMENT_SET_EQUIP_ORDER) do
-							if not actionSlotPresetEntryForSlot(slot, invSlot) then
-								local equipped = player:getInventoryItem(invSlot)
-
-								if equipped then
-									local tier = equipped.getTier and equipped:getTier() or 0
-
-									g_game.equipItemId(equipped:getId(), tier)
-								end
-							end
-						end
-
-						for _, invSlot in ipairs(EQUIPMENT_SET_EQUIP_ORDER) do
-							local entry = actionSlotPresetEntryForSlot(slot, invSlot)
-
-							if entry and not actionSlotPresetEntryMatchesEquipped(player, invSlot, entry) then
-								g_game.equipItemId(entry.itemId, entry.getTier or 0)
-							end
-						end
-					end
-				end
-
-				startEquipmentSetActionCooldown()
+				executeEquipmentSetAction(slot)
 			elseif slot.itemId and slot.itemId > 0 then
 				local player = g_game.getLocalPlayer()
 
@@ -8470,7 +8599,7 @@ function startEquipmentSetActionCooldownVisual(slot)
 	end
 
 	local groupId = equipmentSetCooldownGroupId()
-	local duration = EQUIPMENT_SET_COOLDOWN_MS
+	local duration = (slot._equipmentSetCooldownDuration and slot._equipmentSetCooldownDuration > 0) and slot._equipmentSetCooldownDuration or EQUIPMENT_SET_COOLDOWN_MS
 	local progressRect = slot:recursiveGetChildById(EQUIPMENT_SET_CD_PROGRESS_ID)
 
 	if not progressRect then

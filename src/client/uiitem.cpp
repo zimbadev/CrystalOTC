@@ -54,16 +54,18 @@ void UIItem::drawSelf(const DrawPoolType drawPane)
         m_item->setColor(m_color);
         m_item->draw(Point(exactSize - g_gameConfig.getSpriteSize()) + m_item->getDisplacement());
 
-        // Blit the item at its native size, centered in the slot. Slots larger than the
-        // sprite (e.g. the 66x66 task-board and 70x70 store cells) used to upscale it and
-        // it looked oversized/blurry; now they show it 1:1. Slots smaller than the sprite
-        // still shrink to fit.
+        // Blit the item at its native size, centered in the slot when m_fixedItemSize is true.
+        // Slots larger than the sprite (e.g. the 66x66 task-board and 70x70 store cells)
+        // show it 1:1 by default. Slots with fixed-item-size: false (e.g. equipment assign slots)
+        // scale to fill the slot.
         Rect itemDest = getPaddingRect();
-        const int nativeSide = std::min<int>(exactSize, std::min<int>(itemDest.width(), itemDest.height()));
-        if (nativeSide < itemDest.width() || nativeSide < itemDest.height()) {
-            itemDest = Rect(itemDest.x() + (itemDest.width() - nativeSide) / 2,
-                            itemDest.y() + (itemDest.height() - nativeSide) / 2,
-                            nativeSide, nativeSide);
+        if (m_fixedItemSize) {
+            const int nativeSide = std::min<int>(exactSize, std::min<int>(itemDest.width(), itemDest.height()));
+            if (nativeSide < itemDest.width() || nativeSide < itemDest.height()) {
+                itemDest = Rect(itemDest.x() + (itemDest.width() - nativeSide) / 2,
+                                itemDest.y() + (itemDest.height() - nativeSide) / 2,
+                                nativeSide, nativeSide);
+            }
         }
         g_drawPool.releaseFrameBuffer(itemDest, m_flipDirection);
 
@@ -183,6 +185,8 @@ void UIItem::onStyleApply(const std::string_view styleName, const OTMLNodePtr& s
             m_alwaysShowCount = node->value<bool>();
         else if (node->tag() == "flip-direction")
             setFlipDirection(node->value<uint8_t>());
+        else if (node->tag() == "fixed-item-size")
+            setFixedItemSize(node->value<bool>());
     }
 
     UIWidget::onStyleApply(styleName, styleNode);
