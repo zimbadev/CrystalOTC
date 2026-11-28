@@ -85,7 +85,7 @@ public:
 
     int getWidth() const;
     int getHeight() const;
-    int getRealSize() const;
+    virtual int getRealSize() const;
     int getLayers() const;
     int getNumPatternX() const;
     int getNumPatternY() const;

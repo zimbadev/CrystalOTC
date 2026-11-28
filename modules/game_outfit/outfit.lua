@@ -1,4 +1,4 @@
-﻿-- chunkname: @/game_outfit/outfit.lua
+-- chunkname: @/game_outfit/outfit.lua
 local setStoreAppearanceNameRowPressNudge -- forward declaration (used before its declaration in the decompiled file)
 
 local statesOutft = {
@@ -4352,14 +4352,7 @@ function showMounts()
 
 		if mountCheck then
 			mountCheck:setEnabled(focused ~= nil)
-
-			local showMounted = previousMountChecked
-
-			if cyclopediaMountFocus then
-				showMounted = true
-			end
-
-			mountCheck:setChecked(showMounted and focused ~= nil)
+			mountCheck:setChecked(focused ~= nil)
 		end
 
 		updatePreview()
@@ -4587,10 +4580,8 @@ function onMountSelect(list, focusedChild, unfocusedChild, reason)
 		local mountCheck = window and window.configure and window.configure.mount and window.configure.mount.check
 
 		if mountCheck then
-			local previousMountChecked = mountCheck:isChecked()
-
 			mountCheck:setEnabled(tempOutfit.mount > 0)
-			mountCheck:setChecked(previousMountChecked and tempOutfit.mount > 0)
+			mountCheck:setChecked(tempOutfit.mount > 0)
 		end
 
 		updatePreview()

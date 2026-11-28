@@ -11,6 +11,7 @@
 *.sln.docstates
 .idea/
 .vscode/
+.stylua.toml
 vcpkg_installed/
 
 # Build results

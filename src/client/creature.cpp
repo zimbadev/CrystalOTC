@@ -409,9 +409,8 @@ void Creature::internalDraw(Point dest, const Color& color)
 
         // outfit is a real creature
         if (m_outfit.isCreature()) {
+            Point riderDest = dest;
             if (m_outfit.hasMount()) {
-                dest -= getMountThingType()->getDisplacement() * g_drawPool.getScaleFactor();
-
                 if (!replaceColorShader && hasMountShader()) {
                     g_drawPool.setShaderProgram(g_shaders.getShaderById(m_mountShaderId), true/*, [this]()-> void {
                         m_mountShader->bind();
@@ -420,7 +419,9 @@ void Creature::internalDraw(Point dest, const Color& color)
                 }
                 getMountThingType()->draw(dest, 0, m_numPatternX, 0, 0, getCurrentAnimationPhase(true), color);
 
-                dest += getDisplacement() * g_drawPool.getScaleFactor();
+                if (const auto& datType = getThingType()) {
+                    riderDest += (datType->getDisplacement() - getMountThingType()->getDisplacement()) * g_drawPool.getScaleFactor();
+                }
             }
 
             const auto& datType = getThingType();
@@ -453,7 +454,7 @@ void Creature::internalDraw(Point dest, const Color& color)
             if (useFramebuffer) {
                 const int size = static_cast<int>(g_gameConfig.getSpriteSize() * std::max<int>(datType->getSize().area(), 2) * g_drawPool.getScaleFactor());
                 const auto& p = (Point(size) - Point(datType->getExactHeight())) / 2;
-                const auto& destFB = Rect(dest - p, Size{ size });
+                const auto& destFB = Rect(riderDest - p, Size{ size });
 
                 g_drawPool.setShaderProgram(g_shaders.getShaderById(m_shaderId), true/*, shaderAction*/);
 
@@ -461,10 +462,10 @@ void Creature::internalDraw(Point dest, const Color& color)
                 drawCreature(p);
                 g_drawPool.releaseFrameBuffer(destFB);
                 g_drawPool.resetShaderProgram();
-            } else drawCreature(dest);
+            } else drawCreature(riderDest);
 
             for (const auto& paperdoll : m_paperdolls)
-                paperdoll->draw(dest, animationPhase, m_outfit.hasMount(), true, true, color);
+                paperdoll->draw(riderDest, animationPhase, m_outfit.hasMount(), true, true, color);
 
             // outfit is a creature imitating an item or the invisible effect
         } else {
@@ -1228,13 +1229,7 @@ uint16_t Creature::getStepDuration(const bool ignoreDiagonal, const Otc::Directi
 
 Point Creature::getDisplacement() const
 {
-    if (m_outfit.isEffect())
-        return { 8 };
-
-    if (m_outfit.isItem())
-        return {};
-
-    return Thing::getDisplacement();
+    return { getDisplacementX(), getDisplacementY() };
 }
 
 int Creature::getDisplacementX() const
@@ -1337,11 +1332,26 @@ int Creature::getExactSize(int layer, int /*xPattern*/, int yPattern, int zPatte
             for (layer = 0; layer < layers; ++layer)
                 exactSize = std::max<int>(exactSize, Thing::getExactSize(layer, 0, yPattern, zPattern, 0));
         }
+        if (m_outfit.hasMount()) {
+            if (const auto& mountType = getMountThingType()) {
+                exactSize = std::max<int>(exactSize, mountType->getExactSize());
+            }
+        }
     } else {
         exactSize = getThingType()->getExactSize();
     }
 
     return m_exactSize = std::max<uint8_t>(exactSize, g_gameConfig.getSpriteSize());
+}
+
+int Creature::getRealSize() const
+{
+    if (m_outfit.hasMount()) {
+        if (const auto& mountType = getMountThingType()) {
+            return std::max<int>(Thing::getRealSize(), mountType->getRealSize());
+        }
+    }
+    return Thing::getRealSize();
 }
 
 void Creature::setMountShader(const std::string_view name) {
